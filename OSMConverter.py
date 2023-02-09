@@ -1,3 +1,4 @@
+import argparse
 import sys
 
 import matplotlib.pyplot as plt
@@ -62,21 +63,27 @@ def plot_polys(polys):
     else:
         print ("ERROR: cannot plot type " + str(type(polys)))
 
+def init_ArgsParser ():
+    parser = argparse.ArgumentParser(
+        prog='OSMConverter',
+        description='This program reads locations & one border from a geoJson file, generate polygons and export them in VDM format',
+        epilog='Autor: Edgar@haimerl.eu')
+    parser.add_argument('filename', nargs=1, type=str,
+                help="geoJson file to read; has locations with location=[OrtNr] and one MultiPolygon as border")  # positional argument - automatically required
+    parser.add_argument('-i', '--imageExport', help="the polygons are exported as png file")
+    parser.add_argument('-o', '--osmExport', help="the polygons are exported as a geoJson file")
+    parser.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Suppress Output' )
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose Output' )
+    return parser
+
+# handle command line params
+parser = init_ArgsParser()
+args = parser.parse_args()
 
 # read OSM file Dees locations
 # !!!!!!!!!!!!!!! voronoi_region_from_coords did not work with gdf data format, only with Shapely (below)
 #locations = gpd.read_file("Dees_loc.geojson")
-
-# read Dees points as shapely list of points
-if len(sys.argv) <2:
-    print("USAGE: OSMConverter [OSMFile] [ImageName]")
-    exit(-1)
-
-path = sys.argv[1]
-if len(sys.argv) == 3:
-    ImageName = sys.argv[2]
-
-geoFileData = fiona.open(path)
+geoFileData = fiona.open(args.filename[0])
 # find locations (have properties.location != 'None') into shapes
 
 # all features that have a locations properties entry
@@ -93,7 +100,7 @@ locations = [shape(loc["geometry"]) for loc in geoDataLoc]
 borders = [shape(area["geometry"]) for area in geoDataArea]
 # use the first border that has  area=clip area
 if len(borders) != 1:
-    print("could not find exactly ONE MuliPolygon in " + path)
+    print("could not find exactly ONE MuliPolygon in " + args.filename[0])
     exit(-1)
 # use geovoronoi to create the polygons within the border
 region_polys, region_pts = voronoi_regions_from_coords(locations, borders[0])
@@ -103,8 +110,10 @@ print ("generated " + str(len(region_polys)) + " polygons")
 # plt.clf()
 fig, ax = subplot_for_map()
 plot_polys(region_polys)
-if 'ImageName' in locals():
-    plt.savefig(ImageName)
+
+if args.imageExport is not None:
+    plt.savefig(args.imageExport[0])
 plt.show()
 
+# convert to VDM polygons
 
