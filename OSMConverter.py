@@ -1,18 +1,23 @@
 import argparse
-import sys
 
 import matplotlib.pyplot as plt
-# open geojson
+# read geojson
 import fiona
+from fiona.crs import from_epsg
 
-from shapely import MultiPolygon, Point, LineString
+# write geoJson
+import geopandas
+from geopandas import GeoDataFrame
+import pandas
+import shapely
+from shapely import MultiPolygon
 from shapely.geometry import shape, Polygon
 from shapely.geometry.base import GeometrySequence
-from shapely.ops import polygonize
 
 from geovoronoi.plotting import subplot_for_map
 from geovoronoi._voronoi import voronoi_regions_from_coords
 
+# draw a line between the coords - used in plot_polys
 def plot_coords(coords):
     pts = list(coords)
     x,y = zip(*pts)
@@ -63,6 +68,7 @@ def plot_polys(polys):
     else:
         print ("ERROR: cannot plot type " + str(type(polys)))
 
+# set up the Argument Parser
 def init_ArgsParser ():
     parser = argparse.ArgumentParser(
         prog='OSMConverter',
@@ -72,10 +78,71 @@ def init_ArgsParser ():
                 help="geoJson file to read; has locations with location=[OrtNr] and one MultiPolygon as border")  # positional argument - automatically required
     parser.add_argument('-i', '--imageExport', help="the polygons are exported as png file")
     parser.add_argument('-o', '--osmExport', help="the polygons are exported as a geoJson file")
+    parser.add_argument('-s', '--show', help="show the polygons in an extra viewer Window - close the window to continue in the program")
     parser.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Suppress Output' )
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose Output' )
     return parser
 
+def df_to_geodf(df, geom_col="geom", crs=None, wkt=True):
+  """
+  Transforms a pandas DataFrame into a GeoDataFrame.
+  The column 'geom_col' must be a geometry column in WKB representation.
+  To be used to convert df based on pd.read_sql to gdf.
+  Parameters
+  from https://gis.stackexchange.com/questions/174159/converting-pandas-dataframe-to-geodataframe
+  ----------
+  df : DataFrame
+      pandas DataFrame with geometry column in WKB representation.
+  geom_col : string, default 'geom'
+      column name to convert to shapely geometries
+  crs : pyproj.CRS, optional
+      CRS to use for the returned GeoDataFrame. The value can be anything accepted
+      by :meth:`pyproj.CRS.from_user_input() <pyproj.crs.CRS.from_user_input>`,
+      such as an authority string (eg "EPSG:4326") or a WKT string.
+      If not set, tries to determine CRS from the SRID associated with the
+      first geometry in the database, and assigns that to all geometries.
+  Returns
+  -------
+  GeoDataFrame
+  """
+
+  if geom_col not in df:
+    raise ValueError("Query missing geometry column '{}'".format(geom_col))
+
+  geoms = df[geom_col].dropna()
+
+  if not geoms.empty:
+    if wkt == True:
+      load_geom = shapely.wkt.loads
+    else:
+      load_geom_bytes = shapely.wkb.loads
+      """Load from Python 3 binary."""
+
+      def load_geom_buffer(x):
+        """Load from Python 2 binary."""
+        return shapely.wkb.loads(str(x))
+
+      def load_geom_text(x):
+        """Load from binary encoded as text."""
+        return shapely.wkb.loads(str(x), hex=True)
+
+      if isinstance(geoms.iat[0], bytes):
+        load_geom = load_geom_bytes
+      else:
+        load_geom = load_geom_text
+
+    df[geom_col] = geoms = geoms.apply(load_geom)
+    if crs is None:
+      srid = shapely.geos.lgeos.GEOSGetSRID(geoms.iat[0]._geom)
+      # if no defined SRID in geodatabase, returns SRID of 0
+      if srid != 0:
+        crs = "epsg:{}".format(srid)
+
+  return GeoDataFrame(df, crs=crs, geometry=geom_col)
+
+
+
+# ================  this is where the main program begins ==========================
 # handle command line params
 parser = init_ArgsParser()
 args = parser.parse_args()
@@ -110,10 +177,67 @@ print ("generated " + str(len(region_polys)) + " polygons")
 # plt.clf()
 fig, ax = subplot_for_map()
 plot_polys(region_polys)
+if args.show is not None:
+    plt.show()
 
+# export as image
 if args.imageExport is not None:
     plt.savefig(args.imageExport[0])
-plt.show()
+
+# save polygons as geoJson file
+if args.osmExport is not None:
+    # create dict with OrtNr - Polygon
+    DictPoly = dict()
+    pos = 0
+    for regPoint in region_pts:
+        DictPoly[geoDataLocNr[regPoint]] = { 'geometry': {'type': 'Polygon', 'coordinates' : region_polys[pos]} ,
+                                             'properties': {'OrtNr': geoDataLocNr[regPoint]}
+                                            }
+        pos += 1
+# save as geoJson ===========  many tests and no success
+
+if 0:
+    # try with GeoDataFrame.to_file
+    import pandas as pd
+    import geopandas
+    #    d = {'col1': ['name1', 'name2'], 'wkt': ['POINT (1 2)', 'POINT (2 1)']}
+    df = pd.DataFrame(list(region_polys.values()))
+    gs = geopandas.GeoSeries.from_wkt(df['coordinates'])
+    gdf = geopandas.GeoDataFrame(df, geometry=gs, crs="EPSG:2154")
+
+    #df_output = pd.DataFrame(data = region_polys.values())
+    # output = GeoDataFrame(region_polys.values())
+    # output.set_geometry(col='geometry', inplace=True)
+    # Input must be valid geometry objects: {'type': 'Polygon', 'coordinates': <POLYGON ((-0.743 48.777, -1.333 47.699, -2.342 47.599, -2.225 48.61, -1.464...>}
+    gdf.to_file(args.osmExport, driver='GeoJSON', mode='w')
+
+if 0:
+    # try direct with fiona
+    schema = {'geometry': 'Polygon', 'properties': {'OrtNr':'str'}}
+    france_crs = from_epsg(2154)
+    with fiona.open(args.osmExport, 'w', driver="GeoJSON", crs = france_crs, schema= schema) as dst:
+        for poly in DictPoly.values():
+            dst.write ([poly])
+
+if 0:
+    #try with geojson
+    import json
+    geojson = {"type": "FeatureCollection",  "features": []}
+    for f in DictPoly.values():
+        geojson["features"].append(f)
+    with open(args.osmExport, "w") as gjs:
+        json.dump(geojson, gjs)
+
+# manualy create dataFrame (for tests see readWriteGeoJson.py
+df = pandas.DataFrame({'OrtNr' : '0' , 'Polygon' : []})
+# list of order of the polygons relative to input: 0=43 means that point at GeoDataFile position 43 is the first polygon etc.
+regionOrder = [pos[0] for pos in region_pts.values()]
+df['OrtNr'] = [geoDataLocNr[pos] for pos in regionOrder]
+df['Polygon'] = region_polys
+
+# this adds colum geometry to the df -> makes it a geoDataFrame
+gdf = geopandas.GeoDataFrame(df, geometry='Polygon')
+print(gdf.head())
+gdf.to_file(args.osmExport, driver='GeoJSON')
 
 # convert to VDM polygons
-

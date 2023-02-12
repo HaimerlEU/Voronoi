@@ -60,6 +60,9 @@ array is 0 but 2 indexed
 <h2>pyplot</h2>
 MathPlotLib tutorial from https://matplotlib.org/stable/tutorials/introductory/pyplot.html
 
+<h2>readWriteGeoJson</h2>
+This are tests to read from a geoJson file into a geoDataFrame and write this back to file
+
 <h2>ShapelyTest</h2>
 From tutorial https://shapely.readthedocs.io/en/stable/index.html
 Trying to make it work with Shapely alone - no geovoronoi
