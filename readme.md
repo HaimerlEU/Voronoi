@@ -37,6 +37,8 @@ Versuche mit Mathplot, von
 
 <h2>OSMconvert - current work</h2>
 Based on Dees.py: changes to read 
+Start with this commandline params:
+FranceDemoBorders.geojson -o FrancePolys.geojson
 * read ONE geoJson with locations and border
 * generate polygons and find/draw border
 * find locations and one multipolygon by type on GeoJson file/data
