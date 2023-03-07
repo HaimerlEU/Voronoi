@@ -44,6 +44,39 @@ if 0:
     print(gdf.head())
     gdf.to_file(args.outFilename[0], driver='GeoJSON')
 
+
+if 0:
+    # try with GeoDataFrame.to_file
+    import pandas as pd
+    import geopandas
+    #    d = {'col1': ['name1', 'name2'], 'wkt': ['POINT (1 2)', 'POINT (2 1)']}
+    df = pd.DataFrame(list(region_polys.values()))
+    gs = geopandas.GeoSeries.from_wkt(df['coordinates'])
+    gdf = geopandas.GeoDataFrame(df, geometry=gs, crs="EPSG:2154")
+
+    #df_output = pd.DataFrame(data = region_polys.values())
+    # output = GeoDataFrame(region_polys.values())
+    # output.set_geometry(col='geometry', inplace=True)
+    # Input must be valid geometry objects: {'type': 'Polygon', 'coordinates': <POLYGON ((-0.743 48.777, -1.333 47.699, -2.342 47.599, -2.225 48.61, -1.464...>}
+    gdf.to_file(args.osmExport, driver='GeoJSON', mode='w')
+
+if 0:
+    # try direct with fiona
+    schema = {'geometry': 'Polygon', 'properties': {'OrtNr':'str'}}
+    france_crs = from_epsg(2154)
+    with fiona.open(args.osmExport, 'w', driver="GeoJSON", crs = france_crs, schema= schema) as dst:
+        for poly in DictPoly.values():
+            dst.write ([poly])
+
+if 0:
+    #try with geojson
+    import json
+    geojson = {"type": "FeatureCollection",  "features": []}
+    for f in DictPoly.values():
+        geojson["features"].append(f)
+    with open(args.osmExport, "w") as gjs:
+        json.dump(geojson, gjs)
+
 # read from geojson
 if 1:
     import fiona
