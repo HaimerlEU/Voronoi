@@ -62,24 +62,6 @@ def plot_polys(polys):
     else:
         print ("ERROR: cannot plot type " + str(type(polys)))
 
-# project to xy
-from pyproj import Proj, transform
-def Geo2XY (df):
-    M1s = [] #initiate empty list for 1st coordinate value
-    M2s = [] #initiate empty list for 2nd coordinate value
-
-    for index, row in df.iterrows(): #iterate over rows in the dataframe
-        long = row["Longitude (decimal degrees)"] #get the longitude for one row
-        lat = row["Latitude (decimal degrees)"] #get the latitude for one row
-        M1 = (transform(Proj(init='epsg:4326'), Proj(init='epsg:3857'), long, lat))[0] #get the 1st coordinate
-        M2 = (transform(Proj(init='epsg:4326'), Proj(init='epsg:3857'), long, lat))[1] #get the second coordinate
-        M1s.append(M1) #append 1st coordinate to list
-        M2s.append(M2) #append second coordinate to list
-
-    df['M1'] = M1s #new dataframe column with 1st coordinate
-    df['M2'] = M2s #new dataframe columne with second coordinate
-    return df
-
 # set up the Argument Parser
 def init_ArgsParser ():
     parser = argparse.ArgumentParser(
@@ -88,8 +70,9 @@ def init_ArgsParser ():
         epilog='Autor: Edgar@haimerl.eu')
     parser.add_argument('filename', nargs=1, type=str,
                 help="geoJson file to read; has locations with location=[OrtNr] and one MultiPolygon as border")  # positional argument - automatically required
+    parser.add_argument('-c', '--crs', help="Projection code; outputs file [osmExport]_[crs].geojson with his projection")
     parser.add_argument('-i', '--imageExport', help="the polygons are exported as png file")
-    parser.add_argument('-o', '--osmExport', help="the polygons are exported as a geoJson file")
+    parser.add_argument('-o', '--osmExport', help="the polygons are exported as a geoJson file in projection of input file")
     parser.add_argument('-s', '--show', help="show the polygons in an extra viewer Window - close the window to continue in the program")
     parser.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Suppress Output' )
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose Output' )
@@ -102,8 +85,10 @@ parser = init_ArgsParser()
 args = parser.parse_args()
 
 # read OSM file, contains locations (points) and ONE area = bounding area
-gdf = geopandas.read_file(args.filename[0])
-geoFileData = gdf.from_features(gdf, crs=2154)
+geoFileData = geopandas.read_file(args.filename[0])
+crsOri = geoFileData.crs
+
+# geoFileData = gdf.from_features(gdf, crs=2154)
 print("read file " + args.filename[0] + "; has Projection " + str(geoFileData.crs))
 
 # select all features that are points
@@ -123,37 +108,56 @@ print ("generated " + str(len(region_polys)) + " polygons")
 # ========================
 # plot the polygons (but here without the right projection - just for basic
 # ============================
-fig, ax = subplot_for_map()
-plot_polys(region_polys)
-if args.show is not None:
+if args.show is True:
+    fig, ax = subplot_for_map()
+    plot_polys(region_polys)
     plt.show()
 
 # ===============  export as image =================================
 if args.imageExport is not None:
     plt.savefig(args.imageExport[0])
 
-# ================  save polygons as geoJson file  ===========================
-if args.osmExport is not None:
-    # create dict with OrtNr - Polygon
-    DictPoly = dict()
-    pos = 0
-    for regPoint in region_pts:
-        DictPoly[geoDataLocNr[regPoint]] = { 'geometry': {'type': 'Polygon', 'coordinates' : region_polys[pos]} ,
-                                             'properties': {'OrtNr': geoDataLocNr[regPoint]}
-                                            }
-        pos += 1
+# ================  convert to GeoDataFrame  ===========================
+
+# create dict with OrtNr - Polygon
+DictPoly = dict()
+pos = 0
+for regPoint in region_pts:
+    DictPoly[geoDataLocNr[regPoint]] = { 'geometry': {'type': 'Polygon', 'coordinates' : region_polys[pos]} ,
+                                         'properties': {'OrtNr': geoDataLocNr[regPoint]}
+                                        }
+    pos += 1
 
 # manually create dataFrame (for tests see readWriteGeoJson.py
-df = pandas.DataFrame({'OrtNr' : '0' , 'Polygon' : []})
+df = pandas.DataFrame({'name' : '0' , 'Polygon' : []})
 # list of order of the polygons relative to input: 0=43 means that point at GeoDataFile position 43 is the first polygon etc.
 regionOrder = [pos[0] for pos in region_pts.values()]
-df['OrtNr'] = [geoDataLocNr[pos] for pos in regionOrder]
+df['name'] = [geoDataLocNr[pos] for pos in regionOrder]
 df['Polygon'] = region_polys
 
 # this adds colum geometry to the df -> makes it a geoDataFrame
 gdf = geopandas.GeoDataFrame(df, geometry='Polygon')
-gdf.to_file(args.osmExport, driver='GeoJSON')
+gdf.crs = crsOri
 
-if args.show is not None:
-    print(gdf.head())
+# =========== plot polygons - no reprojection
+if args.show is True:
     gdf.plot()
+    print(gdf.head())
+
+# export in original projection
+if args.osmExport is not None:
+    gdf.to_file(args.osmExport, driver='GeoJSON')
+
+# reprojection to crs
+if args.crs is not None:
+    fileName = args.osmExport[0: args.osmExport.find(".")] + "_" + args.crs + args.osmExport[args.osmExport.find('.'): len(args.osmExport)]
+    gdfMercator = gdf.to_crs(int(args.crs))
+    # transformation looses properties, copy transformed polygons to df from above
+    df['Polygon'] = gdfMercator.affine_transform([1, 0, 0, -1, 0, 10000000])
+    # transformation looses properties
+    gdf = geopandas.GeoDataFrame(df, geometry='Polygon')
+    gdf.to_file(fileName, driver='GeoJSON')
+
+if args.show is True:
+    gdfMercator.plot()
+    print(gdfMercator.head())
