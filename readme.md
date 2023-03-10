@@ -16,7 +16,7 @@ Start with <a href="https://geopandas.org/en/stable/getting_started/introduction
 GeoPandas Introduction</a>
 <p>ne Menge geht hier, nur nicht der plot in Ubuntu</p>
 <ul>
-<li><b>ToDo:</b> try in Windows: zeigt einfach nichts, wird ignoriert</li>
+<li><b>TODO:</b> try in Windows: zeigt einfach nichts, wird ignoriert</li>
 </ul>
 
 <h2>Dees</h2>
@@ -42,17 +42,15 @@ FranceDemoBorders.geojson -o FrancePolys.geojson
 * read ONE geoJson with locations and border
 * generate polygons and find/draw border
 * find locations and one multipolygon by type on GeoJson file/data
-* simple plot for control
-* TODO projection - convert to 2D before or after polygon generation?
-* TODO export polygons to VDM
+* simple plot for control 
+* projection - convert to 2D after polygon generation and mirror upwards
+* export polygons to geoJson that can be imported in VDM
 
 <h2>OSM_map</h2>
 My code: 
 <ul>
 <li>reads Dees_loc.geojson</li>
 <li>draw locations</li>
-<li>ToDo read borders</li>
-<li>ToDo generate volonoi with locations & border</li>
 </ul>
 
 <h2>PreSchool</h2>
