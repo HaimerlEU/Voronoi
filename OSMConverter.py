@@ -3,6 +3,8 @@ import argparse
 import matplotlib.pyplot as plt
 import geopandas
 import pandas
+import scipy
+import descartes
 from shapely import MultiPolygon
 from shapely.geometry import Polygon
 from shapely.geometry.base import GeometrySequence
