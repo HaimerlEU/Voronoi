@@ -99,13 +99,16 @@ print("read file " + args.filename[0] + "; has Projection " + str(geoFileData.cr
 
 # select all features that are points
 locations =  [loc for loc in geoFileData['geometry'] if loc.geom_type == "Point"]
+print ("found " + str(len(locations)) + " locations")
 # create a parallel list with location Numbers
-geoDataLocNr = [locNr for locNr in geoFileData['location'] if locNr is not None]
+geoDataLocNr = [locNr for locNr in geoFileData['location'] if isinstance(locNr, str)]
 # looking for bounding area - select all MultiPolygons (should be only one - later only use the 1st)
 borders = [area for area in geoFileData['geometry'] if area.geom_type == "MultiPolygon"]
 if len(borders) != 1:
     print("could not find exactly ONE MuliPolygon in " + args.filename[0])
     exit(-1)
+else:
+    print("found one MultiPolygon; using this as border.")
 
 # use geovoronoi to create the polygons within the border
 region_polys, region_pts = voronoi_regions_from_coords(locations, borders[0])
