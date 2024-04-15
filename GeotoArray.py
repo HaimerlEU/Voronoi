@@ -1,9 +1,9 @@
 import pandas as pd
-import geopandas
+import geopandas    
 # for map display gfd.explore
 import matplotlib
-import mapclassify
-import folium
+# import mapclassify
+# import folium
 
 # from https://geopandas.org/en/stable/gallery/create_geopandas_from_pandas.html
 df = pd.DataFrame(
@@ -46,7 +46,7 @@ matplotlib.use('svg', force=True)
 gdf.plot("area", legend=True)
 # interactive version - enter at prompt in console?
 # don't see anything on Ubuntu???
-gdf.explore("area", legend=False)
+# gdf.explore("area", legend=False)
 
 gdf = gdf.set_geometry("centroid")
 

@@ -39,12 +39,13 @@ Versuche mit Mathplot, von
 Based on Dees.py: changes to read 
 Start with this commandline params:
 FranceDemoBorders.geojson -o FrancePolys.geojson
-* read ONE geoJson with locations and border
-* generate polygons and find/draw border
-* find locations and one multipolygon by type on GeoJson file/data
-* simple plot for control 
-* projection - convert to 2D after polygon generation and mirror upwards
-* export polygons to geoJson that can be imported in VDM
+
++ read ONE geoJson with locations and border
++ generate polygons and find/draw border
++ find locations and one multipolygon by type on GeoJson file/data
++ simple plot for control 
++ projection - convert to 2D after polygon generation and mirror upwards
++ export polygons to geoJson that can be imported in VDM
 
 <h2>OSM_map</h2>
 My code: 
